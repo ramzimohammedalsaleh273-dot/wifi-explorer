@@ -67,8 +67,7 @@ public class MainActivity extends FlutterActivity {
             if (scanReceiverRegistered) {
               try { unregisterReceiver(receiver); } catch (Exception ignored) {}
               scanReceiverRegistered = false;
-              try { result.success(toMaps(wifi.getScanResults())); }
-              catch (Exception e) { result.error("scan_timeout", "Scan timed out; Android may have limited scan frequency", null); }
+              result.error("scan_timeout", "Android did not complete a fresh scan; wait and retry", null);
             }
           }, 12000);
         } catch (SecurityException e) {
