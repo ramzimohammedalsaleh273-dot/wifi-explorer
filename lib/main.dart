@@ -34,6 +34,7 @@ class WifiNetwork {
     channel: (m['channel'] as num?)?.toInt() ?? 0);
   String get band => frequency >= 5925 ? '6 غيغاهرتز' : frequency >= 4900 ? '5 غيغاهرتز' : frequency > 0 ? '2.4 غيغاهرتز' : 'غير معروف';
   String get signal => level >= -50 ? 'ممتازة' : level >= -60 ? 'قوية' : level >= -70 ? 'متوسطة' : 'ضعيفة';
+  Map<String,dynamic> toMap() => {'ssid':ssid,'bssid':bssid,'security':security,'level':level,'frequency':frequency,'channel':channel};
 }
 
 class ExplorerHome extends StatefulWidget {
@@ -51,6 +52,7 @@ class _ExplorerHomeState extends State<ExplorerHome> {
   final query = TextEditingController();
   final locationQuery = TextEditingController(text: 'إب، اليمن');
   final Set<String> favorites = {};
+  final Map<String, WifiNetwork> savedFavorites = {};
   final List<String> history = [];
 
   @override
@@ -63,14 +65,20 @@ class _ExplorerHomeState extends State<ExplorerHome> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      favorites.addAll(prefs.getStringList('favorites') ?? <String>[]);
+      for (final item in prefs.getStringList('favorite_networks') ?? <String>[]) {
+        try {
+          final network = WifiNetwork.fromMap(jsonDecode(item) as Map<dynamic,dynamic>);
+          savedFavorites[network.bssid] = network;
+          favorites.add(network.bssid);
+        } catch (_) {}
+      }
       history.addAll(prefs.getStringList('scan_history') ?? <String>[]);
     });
   }
 
   Future<void> _saveSaved() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('favorites', favorites.toList());
+    await prefs.setStringList('favorite_networks', savedFavorites.values.map((n) => jsonEncode(n.toMap())).toList());
     await prefs.setStringList('scan_history', history.take(100).toList());
   }
   List<WifiNetwork> get visibleNetworks => networks.where((n) => ('${n.ssid} ${n.security} ${n.band}').toLowerCase().contains(query.text.toLowerCase())).toList();
@@ -91,6 +99,9 @@ class _ExplorerHomeState extends State<ExplorerHome> {
       final result = await platform.invokeMethod<List<dynamic>>('scanNetworks');
       networks = (result ?? []).map((e) => WifiNetwork.fromMap(Map<dynamic,dynamic>.from(e as Map))).toList()
         ..sort((a,b) => b.level.compareTo(a.level));
+      for (final network in networks) {
+        if (favorites.contains(network.bssid)) savedFavorites[network.bssid] = network;
+      }
       history.insert(0, 'فحص ${DateTime.now().toLocal().toString().substring(0,16)} — ${networks.length} شبكة');
       await _saveSaved();
       message = networks.isEmpty ? 'لم تُرجع المنظومة شبكات. تأكد من تشغيل Wi‑Fi والموقع، ثم أعد المحاولة.' : 'تم العثور على ${networks.length} شبكة قريبة.';
@@ -167,7 +178,7 @@ class _ExplorerHomeState extends State<ExplorerHome> {
             Padding(padding:const EdgeInsets.symmetric(horizontal:16,vertical:4),child:SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:searching?null:searchPublicHotspots,icon:const Icon(Icons.public),label:Text(searching?'جارٍ البحث…':'البحث عن نقاط اتصال عامة'),style:FilledButton.styleFrom(backgroundColor:navy,foregroundColor:Colors.white)))),
             Expanded(child:hotspots.isEmpty?_empty('ابحث عن نقاط اتصال عامة','ابحث عن منطقة في أي مكان بالعالم. النتائج تعتمد على ما هو مسجل في OpenStreetMap.'):ListView.builder(padding:const EdgeInsets.all(16),itemCount:hotspots.length,itemBuilder:(c,i){final h=hotspots[i];return Card(color:Colors.white,child:ListTile(leading:const CircleAvatar(backgroundColor:Color(0xFFE1F7F3),child:Icon(Icons.public,color:navy)),title:Text(h['name'].toString()),subtitle:Text('${h['type']} • ${h['address']}\n${h['lat'] ?? ''}, ${h['lon'] ?? ''}'),isThreeLine:true,trailing:const Icon(Icons.map_outlined),onTap:()async{final lat=h['lat'];final lon=h['lon'];if(lat!=null&&lon!=null){final uri=Uri.parse('https://www.openstreetmap.org/?mlat=$lat&mlon=$lon#map=17/$lat/$lon');await launchUrl(uri,mode:LaunchMode.externalApplication);}})));}))
           ]),
-          favorites.isEmpty?_empty('لا توجد مفضلات','أضف شبكة إلى المفضلة من بطاقة الشبكة.'):ListView(padding:const EdgeInsets.all(16),children:networks.where((n)=>favorites.contains(n.bssid)).map(_networkCard).toList()),
+          savedFavorites.isEmpty?_empty('لا توجد مفضلات','أضف شبكة إلى المفضلة من بطاقة الشبكة.'):ListView(padding:const EdgeInsets.all(16),children:savedFavorites.values.map(_networkCard).toList()),
           history.isEmpty?_empty('لا يوجد سجل بعد','سيظهر سجل مختصر بعد أول فحص.'):ListView(padding:const EdgeInsets.all(16),children:history.map((h)=>Card(color:Colors.white,child:ListTile(leading:const Icon(Icons.history),title:Text(h)))).toList()),
         ])),
       ]),
@@ -182,7 +193,7 @@ class _ExplorerHomeState extends State<ExplorerHome> {
 
   Widget _empty(String title,String subtitle)=>Center(child:Padding(padding:const EdgeInsets.all(30),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.wifi_find,size:54,color:teal),const SizedBox(height:12),Text(title,style:const TextStyle(fontSize:18,fontWeight:FontWeight.bold)),const SizedBox(height:6),Text(subtitle,textAlign:TextAlign.center,style:const TextStyle(color:Colors.black54))])));
   Widget _networkCard(WifiNetwork n)=>Card(color:Colors.white,elevation:0,margin:const EdgeInsets.only(bottom:10),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16),side:const BorderSide(color:Color(0xFFE3EAF0))),child:Padding(padding:const EdgeInsets.all(14),child:Column(children:[
-    Row(children:[Container(width:46,height:46,decoration:BoxDecoration(color:const Color(0xFFE2F7F3),borderRadius:BorderRadius.circular(14)),child:Icon(n.level>=-65?Icons.wifi:Icons.wifi_2_bar,color:navy,size:28)),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(n.ssid,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16),maxLines:1,overflow:TextOverflow.ellipsis),Text(n.bssid,style:const TextStyle(color:Colors.black54,fontSize:11))])),IconButton(onPressed:(){setState(()=>favorites.contains(n.bssid)?favorites.remove(n.bssid):favorites.add(n.bssid));_saveSaved();},icon:Icon(favorites.contains(n.bssid)?Icons.star:Icons.star_border,color:favorites.contains(n.bssid)?Colors.amber:navy))]),
+    Row(children:[Container(width:46,height:46,decoration:BoxDecoration(color:const Color(0xFFE2F7F3),borderRadius:BorderRadius.circular(14)),child:Icon(n.level>=-65?Icons.wifi:Icons.wifi_2_bar,color:navy,size:28)),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(n.ssid,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16),maxLines:1,overflow:TextOverflow.ellipsis),Text(n.bssid,style:const TextStyle(color:Colors.black54,fontSize:11))])),IconButton(onPressed:(){setState((){if(favorites.contains(n.bssid)){favorites.remove(n.bssid);savedFavorites.remove(n.bssid);}else{favorites.add(n.bssid);savedFavorites[n.bssid]=n;}});_saveSaved();},icon:Icon(favorites.contains(n.bssid)?Icons.star:Icons.star_border,color:favorites.contains(n.bssid)?Colors.amber:navy))]),
     const SizedBox(height:12),Row(children:[_metric('قوة الإشارة','${n.level} dBm'),_metric('التقييم',n.signal),_metric('القناة',n.channel==0?'—':'${n.channel}')]),const Divider(height:22),Row(children:[const Icon(Icons.security,size:17,color:teal),const SizedBox(width:6),Expanded(child:Text(n.security,style:const TextStyle(fontSize:12))),Text(n.band,style:const TextStyle(fontWeight:FontWeight.w600,fontSize:12))])
   ])));
   Widget _metric(String label,String value)=>Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:const TextStyle(color:Colors.black54,fontSize:11)),const SizedBox(height:3),Text(value,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13))]));
