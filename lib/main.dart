@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 void main() => runApp(const WifiExplorerApp());
@@ -51,6 +52,27 @@ class _ExplorerHomeState extends State<ExplorerHome> {
   final locationQuery = TextEditingController(text: 'إب، اليمن');
   final Set<String> favorites = {};
   final List<String> history = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSaved();
+  }
+
+  Future<void> _loadSaved() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      favorites.addAll(prefs.getStringList('favorites') ?? <String>[]);
+      history.addAll(prefs.getStringList('scan_history') ?? <String>[]);
+    });
+  }
+
+  Future<void> _saveSaved() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('favorites', favorites.toList());
+    await prefs.setStringList('scan_history', history.take(100).toList());
+  }
   List<WifiNetwork> get visibleNetworks => networks.where((n) => ('${n.ssid} ${n.security} ${n.band}').toLowerCase().contains(query.text.toLowerCase())).toList();
 
   Future<void> scan() async {
@@ -70,6 +92,7 @@ class _ExplorerHomeState extends State<ExplorerHome> {
       networks = (result ?? []).map((e) => WifiNetwork.fromMap(Map<dynamic,dynamic>.from(e as Map))).toList()
         ..sort((a,b) => b.level.compareTo(a.level));
       history.insert(0, 'فحص ${DateTime.now().toLocal().toString().substring(0,16)} — ${networks.length} شبكة');
+      await _saveSaved();
       message = networks.isEmpty ? 'لم تُرجع المنظومة شبكات. تأكد من تشغيل Wi‑Fi والموقع، ثم أعد المحاولة.' : 'تم العثور على ${networks.length} شبكة قريبة.';
     } on PlatformException catch (e) { message = 'تعذر الفحص: ${e.message ?? e.code}'; }
       catch (e) { message = 'تعذر إكمال الفحص. تحقق من الأذونات وتشغيل Wi‑Fi.'; }
@@ -151,7 +174,7 @@ class _ExplorerHomeState extends State<ExplorerHome> {
 
   Widget _empty(String title,String subtitle)=>Center(child:Padding(padding:const EdgeInsets.all(30),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.wifi_find,size:54,color:teal),const SizedBox(height:12),Text(title,style:const TextStyle(fontSize:18,fontWeight:FontWeight.bold)),const SizedBox(height:6),Text(subtitle,textAlign:TextAlign.center,style:const TextStyle(color:Colors.black54))])));
   Widget _networkCard(WifiNetwork n)=>Card(color:Colors.white,elevation:0,margin:const EdgeInsets.only(bottom:10),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(16),side:const BorderSide(color:Color(0xFFE3EAF0))),child:Padding(padding:const EdgeInsets.all(14),child:Column(children:[
-    Row(children:[Container(width:46,height:46,decoration:BoxDecoration(color:const Color(0xFFE2F7F3),borderRadius:BorderRadius.circular(14)),child:Icon(n.level>=-65?Icons.wifi:Icons.wifi_2_bar,color:navy,size:28)),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(n.ssid,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16),maxLines:1,overflow:TextOverflow.ellipsis),Text(n.bssid,style:const TextStyle(color:Colors.black54,fontSize:11))])),IconButton(onPressed:()=>setState(()=>favorites.contains(n.bssid)?favorites.remove(n.bssid):favorites.add(n.bssid)),icon:Icon(favorites.contains(n.bssid)?Icons.star:Icons.star_border,color:favorites.contains(n.bssid)?Colors.amber:navy))]),
+    Row(children:[Container(width:46,height:46,decoration:BoxDecoration(color:const Color(0xFFE2F7F3),borderRadius:BorderRadius.circular(14)),child:Icon(n.level>=-65?Icons.wifi:Icons.wifi_2_bar,color:navy,size:28)),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(n.ssid,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:16),maxLines:1,overflow:TextOverflow.ellipsis),Text(n.bssid,style:const TextStyle(color:Colors.black54,fontSize:11))])),IconButton(onPressed:(){setState(()=>favorites.contains(n.bssid)?favorites.remove(n.bssid):favorites.add(n.bssid));_saveSaved();},icon:Icon(favorites.contains(n.bssid)?Icons.star:Icons.star_border,color:favorites.contains(n.bssid)?Colors.amber:navy))]),
     const SizedBox(height:12),Row(children:[_metric('قوة الإشارة','${n.level} dBm'),_metric('التقييم',n.signal),_metric('القناة',n.channel==0?'—':'${n.channel}')]),const Divider(height:22),Row(children:[const Icon(Icons.security,size:17,color:teal),const SizedBox(width:6),Expanded(child:Text(n.security,style:const TextStyle(fontSize:12))),Text(n.band,style:const TextStyle(fontWeight:FontWeight.w600,fontSize:12))])
   ])));
   Widget _metric(String label,String value)=>Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:const TextStyle(color:Colors.black54,fontSize:11)),const SizedBox(height:3),Text(value,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13))]));
