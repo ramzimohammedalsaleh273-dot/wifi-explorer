@@ -1,0 +1,38 @@
+name: Build Windows Desktop
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Windows runner project
+        shell: pwsh
+        run: |
+          flutter create --platforms=windows --org=com.example --project-name=wifi_explorer C:\temp\wifi-template
+          Copy-Item -Recurse -Force C:\temp\wifi-template\windows .\windows
+      - name: Resolve packages
+        run: flutter pub get
+      - name: Analyze source
+        run: flutter analyze
+      - name: Run tests
+        run: flutter test
+      - name: Build Windows app
+        run: flutter build windows --release
+      - name: Upload Windows application
+        uses: actions/upload-artifact@v4
+        with:
+          name: wifi-explorer-windows
+          path: build/windows/x64/runner/Release/
+          if-no-files-found: error
+          retention-days: 14
