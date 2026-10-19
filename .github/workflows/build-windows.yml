@@ -24,7 +24,8 @@ jobs:
         run: |
           $template = Join-Path $env:TEMP "wifi-template"
           flutter create --platforms=windows --org=com.example --project-name=wifi_explorer $template
-          Copy-Item -Recurse -Force (Join-Path $template "windows") .\windows
+          New-Item -ItemType Directory -Force .\windows | Out-Null
+          Copy-Item -Path (Join-Path $template "windows\*") -Destination .\windows -Recurse -Force
       - name: Resolve packages
         run: flutter pub get
       - name: Analyze source
