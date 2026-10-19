@@ -12,7 +12,7 @@
 ## البناء والتنزيل
 توجد عمليتا بناء آليتان عبر GitHub Actions:
 - **Android APK:** افتح [عمليات بناء Android](https://github.com/ramzimohammedalsaleh273-dot/wifi-explorer/actions/workflows/build-android.yml)، واختر تشغيلًا ناجحًا، ثم نزّل الملف من قسم Artifacts باسم `wifi-explorer-apk`.
-- **Windows:** افتح [عمليات بناء Windows](https://github.com/ramzimohammedalsaleh273-dot/wifi-explorer/actions/workflows/build-windows.yml)، واختر تشغيلًا ناجحًا، ثم نزّل `wifi-explorer-windows`. فك الضغط وشغّل `wifi_explorer.exe) من مجلد الإصدار. قد تحتاج إلى إبقاء ملفات DLL المرفقة بجانبه.
+- **Windows:** افتح [عمليات بناء Windows](https://github.com/ramzimohammedalsaleh273-dot/wifi-explorer/actions/workflows/build-windows.yml)، واختر تشغيلًا ناجحًا، ثم نزّل `wifi-explorer-windows`. فك الضغط وشغّل `wifi_explorer.exe` من مجلد الإصدار. قد تحتاج إلى إبقاء ملفات DLL المرفقة بجانبه.
 
 يُشغّل كل دفع إلى الفرع `main` عمليات البناء والاختبارات تلقائيًا. لا تعتبر النسخة جاهزة للتثبيت حتى ينتهي التشغيل بنجاح وتظهر ملفات Artifacts.
 
