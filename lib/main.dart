@@ -97,6 +97,7 @@ class _ExplorerHomeState extends State<ExplorerHome> {
     } on PlatformException catch (e) {
       message = switch (e.code) {
         'wifi_disabled' => 'شغّل Wi‑Fi على الهاتف ثم أعد المحاولة.',
+        'location_disabled' => 'شغّل خدمة الموقع من إعدادات الهاتف؛ يحتاج Android إليها لإظهار شبكات Wi‑Fi القريبة.',
         'permission_denied' => 'لم يسمح Android بالفحص. اسمح بإذن الموقع وشغّل خدمة الموقع من إعدادات الهاتف.',
         'scan_limited' => 'قيّد Android تكرار الفحص. انتظر قليلًا ثم أعد المحاولة.',
         'scan_timeout' => 'لم يكتمل فحص جديد في الوقت المحدد. تأكد من تشغيل Wi‑Fi والموقع ثم أعد المحاولة.',
