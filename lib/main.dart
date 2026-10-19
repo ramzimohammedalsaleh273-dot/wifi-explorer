@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
@@ -53,6 +54,10 @@ class _ExplorerHomeState extends State<ExplorerHome> {
   List<WifiNetwork> get visibleNetworks => networks.where((n) => ('${n.ssid} ${n.security} ${n.band}').toLowerCase().contains(query.text.toLowerCase())).toList();
 
   Future<void> scan() async {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      setState(() => message = 'فحص الشبكات الراديوية القريبة متاح في نسخة Android فقط؛ يمكنك استخدام البحث العام عبر الإنترنت على هذا الجهاز.');
+      return;
+    }
     setState(() { scanning = true; message = 'جارٍ طلب الأذونات وفحص الشبكات…'; });
     try {
       final loc = await Permission.locationWhenInUse.request();
