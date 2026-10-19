@@ -94,7 +94,14 @@ class _ExplorerHomeState extends State<ExplorerHome> {
       history.insert(0, 'فحص ${DateTime.now().toLocal().toString().substring(0,16)} — ${networks.length} شبكة');
       await _saveSaved();
       message = networks.isEmpty ? 'لم تُرجع المنظومة شبكات. تأكد من تشغيل Wi‑Fi والموقع، ثم أعد المحاولة.' : 'تم العثور على ${networks.length} شبكة قريبة.';
-    } on PlatformException catch (e) { message = 'تعذر الفحص: ${e.message ?? e.code}'; }
+    } on PlatformException catch (e) {
+      message = switch (e.code) {
+        'wifi_disabled' => 'شغّل Wi‑Fi على الهاتف ثم أعد المحاولة.',
+        'permission_denied' => 'لم يسمح Android بالفحص. اسمح بإذن الموقع وشغّل خدمة الموقع من إعدادات الهاتف.',
+        'scan_limited' => 'قيّد Android تكرار الفحص. انتظر قليلًا ثم أعد المحاولة.',
+        _ => 'تعذر فحص الشبكات. تحقق من إعدادات Wi‑Fi والأذونات ثم أعد المحاولة.',
+      };
+    }
       catch (e) { message = 'تعذر إكمال الفحص. تحقق من الأذونات وتشغيل Wi‑Fi.'; }
     finally { if (mounted) setState(() => scanning = false); }
   }
