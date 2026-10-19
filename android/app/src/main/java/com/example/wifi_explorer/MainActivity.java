@@ -60,7 +60,7 @@ public class MainActivity extends FlutterActivity {
           if (!started) {
             unregisterReceiver(receiver);
             scanReceiverRegistered = false;
-            result.success(toMaps(wifi.getScanResults()));
+            result.error("scan_limited", "Android limited the scan frequency. Wait a little and retry.", null);
             return;
           }
           handler.postDelayed(() -> {
