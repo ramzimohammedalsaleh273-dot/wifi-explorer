@@ -1,7 +1,5 @@
 name: Build Windows Desktop
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 concurrency:
   group: windows-build-${{ github.ref }}
