@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.wifi.ScanResult;
+import android.location.LocationManager;
 import android.net.wifi.WifiManager;
 import android.Manifest;
 import android.content.pm.PackageManager;
@@ -32,6 +33,12 @@ public class MainActivity extends FlutterActivity {
         if (!"scanNetworks".equals(call.method)) { result.notImplemented(); return; }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
           result.error("permission_denied", "Location permission is required for Wi-Fi scanning", null); return;
+        }
+        if (Build.VERSION.SDK_INT >= 28) {
+          LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+          if (locationManager != null && !locationManager.isLocationEnabled()) {
+            result.error("location_disabled", "Enable Location services to scan Wi-Fi networks", null); return;
+          }
         }
         WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         if (wifi == null || !wifi.isWifiEnabled()) {
