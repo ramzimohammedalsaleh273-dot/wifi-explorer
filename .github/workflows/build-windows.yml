@@ -19,6 +19,7 @@ jobs:
       - name: Generate Windows runner project
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Force C:\\temp | Out-Null
           flutter create --platforms=windows --org=com.example --project-name=wifi_explorer C:\temp\wifi-template
           Copy-Item -Recurse -Force C:\temp\wifi-template\windows .\windows
       - name: Resolve packages
