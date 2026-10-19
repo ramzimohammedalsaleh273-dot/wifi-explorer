@@ -93,8 +93,11 @@ public class MainActivity extends FlutterActivity {
       String caps = scan.capabilities == null ? "" : scan.capabilities;
       String security = "مفتوحة";
       if (caps.contains("WEP")) security = "WEP";
-      if (caps.contains("WPA")) security = caps.contains("SAE") ? "WPA3 / WPA2" : "WPA/WPA2";
-      if (caps.contains("EAP")) security = "WPA-Enterprise";
+      else if (caps.contains("SAE") && caps.contains("PSK")) security = "WPA3 / WPA2";
+      else if (caps.contains("SAE")) security = "WPA3";
+      else if (caps.contains("PSK") || caps.contains("WPA")) security = "WPA/WPA2";
+      else if (caps.contains("EAP")) security = "WPA-Enterprise";
+      else if (caps.contains("OWE")) security = "OWE (تشفير مفتوح)";
       item.put("security", security);
       output.add(item);
     }
