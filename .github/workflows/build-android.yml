@@ -16,10 +16,22 @@ jobs:
         with:
           channel: stable
           cache: true
+      - name: Generate Android Gradle wrapper files
+        shell: bash
+        run: |
+          flutter create --platforms=android --org=com.example --project-name=wifi_explorer /tmp/wifi-template
+          cp /tmp/wifi-template/android/gradlew android/gradlew
+          cp /tmp/wifi-template/android/gradlew.bat android/gradlew.bat
+          mkdir -p android/gradle/wrapper
+          cp /tmp/wifi-template/android/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/
+          cp /tmp/wifi-template/android/gradle/wrapper/gradle-wrapper.properties android/gradle/wrapper/
+          chmod +x android/gradlew
       - name: Resolve packages
         run: flutter pub get
       - name: Analyze source
         run: flutter analyze
+      - name: Run tests
+        run: flutter test
       - name: Build APK
         run: flutter build apk --release
       - name: Upload APK
