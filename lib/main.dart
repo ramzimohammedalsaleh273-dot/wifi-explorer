@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 void main() => runApp(const WifiExplorerApp());
@@ -46,6 +47,7 @@ class _ExplorerHomeState extends State<ExplorerHome> {
   List<WifiNetwork> networks = [];
   List<Map<String,dynamic>> hotspots = [];
   final query = TextEditingController();
+  final locationQuery = TextEditingController(text: 'إب، اليمن');
   final Set<String> favorites = {};
   final List<String> history = [];
   List<WifiNetwork> get visibleNetworks => networks.where((n) => ('${n.ssid} ${n.security} ${n.band}').toLowerCase().contains(query.text.toLowerCase())).toList();
@@ -70,24 +72,42 @@ class _ExplorerHomeState extends State<ExplorerHome> {
   }
 
   Future<void> searchPublicHotspots() async {
-    setState(() { searching = true; message = 'جارٍ البحث في بيانات OpenStreetMap العامة…'; });
+    setState(() { searching = true; message = 'جارٍ تحديد الموقع والبحث في بيانات OpenStreetMap…'; });
     try {
-      const overpass = 'https://overpass-api.de/api/interpreter';
-      const body = '[out:json][timeout:25];(node["internet_access"="wlan"](around:5000,15.3694,44.1910);way["internet_access"="wlan"](around:5000,15.3694,44.1910);node["amenity"="internet_cafe"](around:5000,15.3694,44.1910););out center tags;';
-      final response = await http.post(Uri.parse(overpass), headers: {'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, body: {'data': body}).timeout(const Duration(seconds: 30));
-      if (response.statusCode != 200) throw Exception('خدمة البيانات غير متاحة الآن (${response.statusCode})');
+      final place = locationQuery.text.trim();
+      if (place.isEmpty) throw Exception('اكتب اسم مدينة أو منطقة أولًا');
+      final geocodeUri = Uri.https('nominatim.openstreetmap.org', '/search', {'q': place, 'format': 'jsonv2', 'limit': '1'});
+      final geoResponse = await http.get(geocodeUri, headers: {'User-Agent': 'WiFiExplorer/1.0 (public hotspot map search)'}).timeout(const Duration(seconds: 20));
+      if (geoResponse.statusCode != 200) throw Exception('تعذر تحديد الموقع');
+      final geo = jsonDecode(geoResponse.body) as List;
+      if (geo.isEmpty) throw Exception('لم يتم العثور على الموقع. جرّب اسمًا أوضح.');
+      final latitude = double.parse(geo.first['lat'].toString());
+      final longitude = double.parse(geo.first['lon'].toString());
+      final overpass = Uri.parse('https://overpass-api.de/api/interpreter');
+      final body = '[out:json][timeout:25];(node["internet_access"="wlan"](around:10000,$latitude,$longitude);way["internet_access"="wlan"](around:10000,$latitude,$longitude);node["amenity"="internet_cafe"](around:10000,$latitude,$longitude););out center tags;';
+      final response = await http.post(overpass, headers: {'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'}, body: {'data': body}).timeout(const Duration(seconds: 35));
+      if (response.statusCode != 200) throw Exception('خدمة بيانات الخرائط غير متاحة الآن');
       final data = jsonDecode(response.body) as Map<String,dynamic>;
       hotspots = ((data['elements'] as List?) ?? []).map((e) {
-        final el = Map<String,dynamic>.from(e as Map); final tags = Map<String,dynamic>.from((el['tags'] as Map?) ?? {});
-        return {'name': tags['name'] ?? tags['brand'] ?? tags['operator'] ?? 'نقطة اتصال عامة غير مسماة', 'type': tags['amenity'] == 'internet_cafe' ? 'مقهى إنترنت' : 'واي فاي عام', 'lat': el['lat'] ?? (el['center'] as Map?)?['lat'], 'lon': el['lon'] ?? (el['center'] as Map?)?['lon'], 'access': tags['internet_access'] ?? 'غير محدد', 'address': [tags['addr:street'], tags['addr:city']].where((x) => x != null).join('، ')};
+        final el = Map<String,dynamic>.from(e as Map);
+        final tags = Map<String,dynamic>.from((el['tags'] as Map?) ?? {});
+        return <String,dynamic>{
+          'name': tags['name'] ?? tags['brand'] ?? tags['operator'] ?? 'نقطة اتصال عامة غير مسماة',
+          'type': tags['amenity'] == 'internet_cafe' ? 'مقهى إنترنت' : 'واي فاي عام',
+          'lat': el['lat'] ?? (el['center'] as Map?)?['lat'],
+          'lon': el['lon'] ?? (el['center'] as Map?)?['lon'],
+          'access': tags['internet_access'] ?? 'غير محدد',
+          'address': [tags['addr:street'], tags['addr:city']].where((x) => x != null).join('، ')
+        };
       }).toList();
-      message = 'عُثر على ${hotspots.length} نتيجة في نطاق بحث تجريبي حول صنعاء. هذه بيانات خرائط عامة وليست مسحًا حيًا للشبكات.';
-    } catch (e) { message = 'تعذر البحث عبر الإنترنت. تحقق من الاتصال ثم أعد المحاولة.'; }
-    finally { if (mounted) setState(() => searching = false); }
+      message = 'نتائج ضمن 10 كم من $place. بيانات الخرائط قد تكون ناقصة ولا تؤكد أن الشبكة تعمل حاليًا.';
+    } catch (e) {
+      message = e.toString().contains('Exception:') ? e.toString().replaceFirst('Exception: ', '') : 'تعذر البحث عبر الإنترنت. تحقق من الاتصال ثم أعد المحاولة.';
+    } finally { if (mounted) setState(() => searching = false); }
   }
 
   @override
-  void dispose() { query.dispose(); super.dispose(); }
+  void dispose() { query.dispose(); locationQuery.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
     final titles = ['الشبكات القريبة', 'نقاط الاتصال العامة', 'المفضلة', 'سجل الفحص'];
@@ -106,7 +126,11 @@ class _ExplorerHomeState extends State<ExplorerHome> {
         Padding(padding: const EdgeInsets.symmetric(horizontal:16, vertical:8), child: TextField(controller:query,onChanged:(_)=>setState((){}),decoration:InputDecoration(hintText:'ابحث عن اسم الشبكة أو التردد…',prefixIcon:const Icon(Icons.search),filled:true,fillColor:Colors.white,border:OutlineInputBorder(borderRadius:BorderRadius.circular(14),borderSide:BorderSide.none)))),
         Expanded(child: IndexedStack(index:tab, children: [
           visibleNetworks.isEmpty ? _empty('لا توجد شبكات معروضة','شغّل Wi‑Fi ثم ابدأ الفحص.') : ListView.builder(padding:const EdgeInsets.fromLTRB(16,4,16,16),itemCount:visibleNetworks.length,itemBuilder:(c,i)=>_networkCard(visibleNetworks[i])),
-          Column(children:[Padding(padding:const EdgeInsets.symmetric(horizontal:16,vertical:4),child:SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:searching?null:searchPublicHotspots,icon:const Icon(Icons.public),label:Text(searching?'جارٍ البحث…':'البحث عن نقاط اتصال عامة'),style:FilledButton.styleFrom(backgroundColor:navy,foregroundColor:Colors.white)))),Expanded(child:hotspots.isEmpty?_empty('ابحث عن نقاط اتصال عامة','البحث يستخدم بيانات OpenStreetMap العامة ضمن نطاق تجريبي حول صنعاء.'):ListView.builder(padding:const EdgeInsets.all(16),itemCount:hotspots.length,itemBuilder:(c,i){final h=hotspots[i];return Card(color:Colors.white,child:ListTile(leading:const CircleAvatar(backgroundColor:Color(0xFFE1F7F3),child:Icon(Icons.public,color:navy)),title:Text(h['name'].toString()),subtitle:Text('${h['type']} • ${h['address']}'),trailing:const Icon(Icons.open_in_new),onTap:()=>ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الموقع مسجل في بيانات الخرائط؛ لا يعني ذلك ضمان توفر الشبكة الآن.')))));}))]),
+          Column(children:[
+            Padding(padding:const EdgeInsets.fromLTRB(16,4,16,8),child:TextField(controller:locationQuery,decoration:InputDecoration(labelText:'ابحث في أي مدينة أو منطقة',hintText:'مثال: إب، اليمن أو القاهرة',prefixIcon:const Icon(Icons.location_on),filled:true,fillColor:Colors.white,border:OutlineInputBorder(borderRadius:BorderRadius.circular(14),borderSide:BorderSide.none)))),
+            Padding(padding:const EdgeInsets.symmetric(horizontal:16,vertical:4),child:SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:searching?null:searchPublicHotspots,icon:const Icon(Icons.public),label:Text(searching?'جارٍ البحث…':'البحث عن نقاط اتصال عامة'),style:FilledButton.styleFrom(backgroundColor:navy,foregroundColor:Colors.white)))),
+            Expanded(child:hotspots.isEmpty?_empty('ابحث عن نقاط اتصال عامة','ابحث عن منطقة في أي مكان بالعالم. النتائج تعتمد على ما هو مسجل في OpenStreetMap.'):ListView.builder(padding:const EdgeInsets.all(16),itemCount:hotspots.length,itemBuilder:(c,i){final h=hotspots[i];return Card(color:Colors.white,child:ListTile(leading:const CircleAvatar(backgroundColor:Color(0xFFE1F7F3),child:Icon(Icons.public,color:navy)),title:Text(h['name'].toString()),subtitle:Text('${h['type']} • ${h['address']}\n${h['lat'] ?? ''}, ${h['lon'] ?? ''}'),isThreeLine:true,trailing:const Icon(Icons.map_outlined),onTap:()async{final lat=h['lat'];final lon=h['lon'];if(lat!=null&&lon!=null){final uri=Uri.parse('https://www.openstreetmap.org/?mlat=$lat&mlon=$lon#map=17/$lat/$lon');await launchUrl(uri,mode:LaunchMode.externalApplication);}})));}))
+          ]),
           favorites.isEmpty?_empty('لا توجد مفضلات','أضف شبكة إلى المفضلة من بطاقة الشبكة.'):ListView(padding:const EdgeInsets.all(16),children:networks.where((n)=>favorites.contains(n.bssid)).map(_networkCard).toList()),
           history.isEmpty?_empty('لا يوجد سجل بعد','سيظهر سجل مختصر بعد أول فحص.'):ListView(padding:const EdgeInsets.all(16),children:history.map((h)=>Card(color:Colors.white,child:ListTile(leading:const Icon(Icons.history),title:Text(h)))).toList()),
         ])),
