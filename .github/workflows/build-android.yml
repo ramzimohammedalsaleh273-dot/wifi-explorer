@@ -7,7 +7,7 @@ concurrency:
   group: android-build-${{ github.ref }}
   cancel-in-progress: true
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -44,3 +44,17 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14
+      - name: Publish installable APK release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: WiFi Explorer — Latest Android APK
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          files: build/app/outputs/flutter-apk/app-release.apk
+          body: |
+            Automated Android APK build from the main branch.
+            Verify the GitHub Actions run succeeded before installing.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
