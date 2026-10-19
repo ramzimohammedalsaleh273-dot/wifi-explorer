@@ -138,7 +138,6 @@ class _ExplorerHomeState extends State<ExplorerHome> {
   void dispose() { query.dispose(); locationQuery.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext context) {
-    final titles = ['الشبكات القريبة', 'نقاط الاتصال العامة', 'المفضلة', 'سجل الفحص'];
     return Scaffold(
       appBar: AppBar(backgroundColor: navy, foregroundColor: Colors.white, title: const Row(children: [Icon(Icons.wifi_tethering, color: teal), SizedBox(width:10), Text('كاشف الشبكات الذكي', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18))]),),
       body: Column(children: [
